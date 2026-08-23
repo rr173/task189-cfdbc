@@ -66,9 +66,18 @@ func (s *RegionStore) UpdateStatus(id string, status model.RegionStatus, extra .
 	if len(extra) > 0 {
 		sealedAt = extra[0]
 	}
-	_, err := s.db.conn.Exec(
-		`UPDATE regions SET status=?, updated_at=?, sealed_at=COALESCE(?,sealed_at) WHERE id=?`,
-		status, now(), nullStr(sealedAt), id)
+	query := `UPDATE regions SET status=?, updated_at=?, sealed_at=COALESCE(?,sealed_at) WHERE id=?`
+	args := []any{status, now(), nullStr(sealedAt), id}
+	if status == model.RegionSealed {
+		query = `UPDATE regions SET status=?, updated_at=?, sealed_at=COALESCE(?,sealed_at) WHERE id=? AND status IN (?,?)`
+		args = append(args, model.RegionConnected, model.RegionIsolated)
+	}
+	res, err := s.db.conn.Exec(query, args...)
+	if err == nil && status == model.RegionSealed {
+		if n, _ := res.RowsAffected(); n == 0 {
+			return model.NewConflict("region %s is not sealable", id)
+		}
+	}
 	return err
 }
 

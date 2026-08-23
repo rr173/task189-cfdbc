@@ -93,18 +93,18 @@ func (s *RegionService) ImportFaces(regionID string, inputs []mesh.FaceInput) (*
 			return nil, nil, model.NewInvalid("face kind must be outer or interface")
 		}
 		f := &model.Face{
-			ID:              s.gen.Next(),
-			RegionID:        regionID,
-			Name:            in.Name,
-			Kind:            kind,
-			Area:            in.Area,
-			NormalX:         in.NormalX,
-			NormalY:         in.NormalY,
-			NormalZ:         in.NormalZ,
-			NodeCount:       in.NodeCount,
-			NeighborRegion:  in.NeighborRegion,
-			NeighborFace:    in.NeighborFace,
-			CreatedAt:       ts,
+			ID:             s.gen.Next(),
+			RegionID:       regionID,
+			Name:           in.Name,
+			Kind:           kind,
+			Area:           in.Area,
+			NormalX:        in.NormalX,
+			NormalY:        in.NormalY,
+			NormalZ:        in.NormalZ,
+			NodeCount:      in.NodeCount,
+			NeighborRegion: in.NeighborRegion,
+			NeighborFace:   in.NeighborFace,
+			CreatedAt:      ts,
 		}
 		faces = append(faces, f)
 	}
@@ -116,9 +116,17 @@ func (s *RegionService) ImportFaces(regionID string, inputs []mesh.FaceInput) (*
 	conn := mesh.CheckConnectivity(r, faces)
 	hash := mesh.HashRegion(regionID, faces)
 
-	// 幂等：同哈希已存在则拒绝重复导入
-	if r.MeshHash != "" && r.MeshHash != hash {
+	// 幂等：已有拓扑不能再次导入，也不能原地替换。
+	if r.MeshHash != "" {
+		if r.MeshHash == hash {
+			return nil, nil, model.NewConflict("region %s already contains this mesh", regionID)
+		}
 		return nil, nil, model.NewConflict("region %s already has mesh hash %s, import would change topology; derive a new region instead", regionID, r.MeshHash)
+	}
+	if count, err := s.faces.CountByRegion(regionID); err != nil {
+		return nil, nil, err
+	} else if count != 0 {
+		return nil, nil, model.NewConflict("region %s already contains persisted faces", regionID)
 	}
 
 	// 落库
@@ -170,6 +178,9 @@ func (s *RegionService) Seal(id string) (*model.Region, error) {
 	}
 	if r.Status == model.RegionSealed {
 		return r, nil // 幂等
+	}
+	if !mesh.CanSeal(r.Status, r.FaceCount) {
+		return nil, model.NewConflict("region %s must have an imported topology before sealing", id)
 	}
 	ts := s.now()
 	if err := s.regions.UpdateStatus(id, model.RegionSealed, ts); err != nil {

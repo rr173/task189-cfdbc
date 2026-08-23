@@ -2,7 +2,10 @@
 // 状态机枚举与共享错误。所有业务包依赖本包，本包不依赖其它内部包。
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // RegionStatus 网格区域状态机：
 // imported（待导入）→ connected（连通）/ isolated（孤立）→ sealed（已封存）。
@@ -14,6 +17,26 @@ const (
 	RegionIsolated  RegionStatus = "isolated"
 	RegionSealed    RegionStatus = "sealed"
 )
+
+// IsKnownBCType reports whether a boundary condition type is part of the
+// supported solver vocabulary.
+func IsKnownBCType(t BCType) bool {
+	switch t {
+	case BCInletVelocity, BCInletMassFlow, BCInletTotalPress,
+		BCOutletPressure, BCOutletMassFlow, BCOutletFree,
+		BCWallNoSlip, BCWallSlip, BCSymmetry,
+		BCInterfaceSideA, BCInterfaceSideB, BCReferencePressure:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsFiniteBoundaryValue rejects NaN and both infinities before a condition
+// enters the persisted configuration.
+func IsFiniteBoundaryValue(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
+}
 
 // FaceStatus 面状态机：
 // unclassified（未分类）→ exposed（外露）/ coupled（耦合）/ duplicate（重复）/ degenerate（退化）。
@@ -139,15 +162,15 @@ type Face struct {
 
 // PhysicsModel 物理模型：决定校验规则（参考压力是否必须、粘性是否参与守恒）。
 type PhysicsModel struct {
-	ID                         string   `json:"id"`
-	Name                       string   `json:"name"`
-	FlowType                   FlowType `json:"flow_type"`
-	Viscous                    bool     `json:"viscous"`
-	ReferencePressureRequired  bool     `json:"reference_pressure_required"`
-	ReferencePressureFaceID    string   `json:"reference_pressure_face_id,omitempty"`
-	DefaultUnit                UnitSystem `json:"default_unit"`
-	Active                     bool     `json:"active"`
-	CreatedAt                  string   `json:"created_at"`
+	ID                        string     `json:"id"`
+	Name                      string     `json:"name"`
+	FlowType                  FlowType   `json:"flow_type"`
+	Viscous                   bool       `json:"viscous"`
+	ReferencePressureRequired bool       `json:"reference_pressure_required"`
+	ReferencePressureFaceID   string     `json:"reference_pressure_face_id,omitempty"`
+	DefaultUnit               UnitSystem `json:"default_unit"`
+	Active                    bool       `json:"active"`
+	CreatedAt                 string     `json:"created_at"`
 }
 
 // BC 边界条件：绑定到面，携带类型、单位与参数（速度/压力/流量等）。
@@ -167,13 +190,13 @@ type BC struct {
 
 // ValidationRun 一次一致性校验运行。
 type ValidationRun struct {
-	ID             string `json:"id"`
-	ModelID        string `json:"model_id"`
-	ConfigVersion  int    `json:"config_version"` // 条件配置版本（每次条件变更 +1）
-	Result         string `json:"result"`         // solvable / underconstrained / overconstrained
-	ErrorCount     int    `json:"error_count"`
-	WarningCount   int    `json:"warning_count"`
-	CreatedAt      string `json:"created_at"`
+	ID            string `json:"id"`
+	ModelID       string `json:"model_id"`
+	ConfigVersion int    `json:"config_version"` // 条件配置版本（每次条件变更 +1）
+	Result        string `json:"result"`         // solvable / underconstrained / overconstrained
+	ErrorCount    int    `json:"error_count"`
+	WarningCount  int    `json:"warning_count"`
+	CreatedAt     string `json:"created_at"`
 }
 
 // Issue 校验发现的问题定位。
@@ -191,16 +214,16 @@ type Issue struct {
 
 // SolverPackage 求解前置包：发布后不可改写，修改配置须派生新包。
 type SolverPackage struct {
-	ID               string        `json:"id"`
-	Name             string        `json:"name"`
-	ConfigVersion    int           `json:"config_version"`
-	RegionHash       string        `json:"region_hash"`
-	ConditionsVersion int          `json:"conditions_version"`
-	ModelID          string        `json:"model_id"`
-	Snapshot         string        `json:"snapshot"` // JSON 快照
-	Status           PackageStatus `json:"status"`
-	CreatedAt        string        `json:"created_at"`
-	PublishedAt      string        `json:"published_at,omitempty"`
+	ID                string        `json:"id"`
+	Name              string        `json:"name"`
+	ConfigVersion     int           `json:"config_version"`
+	RegionHash        string        `json:"region_hash"`
+	ConditionsVersion int           `json:"conditions_version"`
+	ModelID           string        `json:"model_id"`
+	Snapshot          string        `json:"snapshot"` // JSON 快照
+	Status            PackageStatus `json:"status"`
+	CreatedAt         string        `json:"created_at"`
+	PublishedAt       string        `json:"published_at,omitempty"`
 }
 
 // ErrNotFound 表示目标实体不存在。

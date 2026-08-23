@@ -11,12 +11,12 @@ import (
 
 // Snapshot 求解前置包快照：冻结区域拓扑 + 物理模型 + 条件版本。
 type Snapshot struct {
-	RegionHash        string          `json:"region_hash"`
-	ConfigVersion     int             `json:"config_version"`
-	ConditionsVersion int             `json:"conditions_version"`
-	ModelID           string          `json:"model_id"`
-	Faces             []model.Face    `json:"faces"`
-	Conditions        []model.BC      `json:"conditions"`
+	RegionHash        string       `json:"region_hash"`
+	ConfigVersion     int          `json:"config_version"`
+	ConditionsVersion int          `json:"conditions_version"`
+	ModelID           string       `json:"model_id"`
+	Faces             []model.Face `json:"faces"`
+	Conditions        []model.BC   `json:"conditions"`
 }
 
 // NewSnapshot 构造快照（拷贝输入防止外部修改）。
@@ -54,15 +54,15 @@ func DecodeSnapshot(raw string) (Snapshot, error) {
 
 // Diff 前置包差异：比较两个包的快照，输出变更摘要。
 type Diff struct {
-	FromPackageID       string   `json:"from_package_id"`
-	ToPackageID         string   `json:"to_package_id"`
-	RegionHashChanged   bool     `json:"region_hash_changed"`
-	ConfigVersionDelta  int      `json:"config_version_delta"`
-	ConditionsVersionDelta int   `json:"conditions_version_delta"`
-	AddedFaces          []string `json:"added_faces"`
-	RemovedFaces        []string `json:"removed_faces"`
-	ChangedConditions   []string `json:"changed_conditions"`
-	Summary             string   `json:"summary"`
+	FromPackageID          string   `json:"from_package_id"`
+	ToPackageID            string   `json:"to_package_id"`
+	RegionHashChanged      bool     `json:"region_hash_changed"`
+	ConfigVersionDelta     int      `json:"config_version_delta"`
+	ConditionsVersionDelta int      `json:"conditions_version_delta"`
+	AddedFaces             []string `json:"added_faces"`
+	RemovedFaces           []string `json:"removed_faces"`
+	ChangedConditions      []string `json:"changed_conditions"`
+	Summary                string   `json:"summary"`
 }
 
 // DiffPackages 计算两个包的快照差异。若 To 为空快照则视为同包全量对照。
@@ -122,3 +122,6 @@ func DiffPackages(from, to Snapshot, fromID, toID string) Diff {
 
 // Published 判断包是否已发布（发布后不可直接改写）。
 func Published(p *model.SolverPackage) bool { return p.Status == model.PkgPublished }
+
+// CanDerive restricts package branching to an immutable published baseline.
+func CanDerive(p *model.SolverPackage) bool { return p != nil && Published(p) }

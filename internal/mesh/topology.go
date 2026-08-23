@@ -89,12 +89,18 @@ func DetectDuplicates(faces []*model.Face) []string {
 // HashRegion 计算区域拓扑哈希：对面集合按名称排序后取指纹串再哈希。
 // 相同拓扑幂等——相同面集合导入得到相同哈希。
 func HashRegion(regionID string, faces []*model.Face) string {
-	names := make([]string, 0, len(faces))
+	parts := make([]string, 0, len(faces))
 	for _, f := range faces {
-		names = append(names, f.Name)
+		parts = append(parts, f.Name+":"+FaceFingerprint(f)+":"+string(f.Kind)+":"+f.NeighborRegion+":"+f.NeighborFace)
 	}
-	sort.Strings(names)
-	return fingerprint(regionID, strings.Join(names, ","), len(faces))
+	sort.Strings(parts)
+	return fingerprint(regionID, strings.Join(parts, ","), len(faces))
+}
+
+// CanSeal reports whether an imported topology has reached a terminally
+// reviewable state.
+func CanSeal(status model.RegionStatus, faceCount int) bool {
+	return faceCount > 0 && (status == model.RegionConnected || status == model.RegionIsolated)
 }
 
 // Classify 执行一次完整分类：先按几何退化，再按角色，
@@ -114,10 +120,10 @@ func Classify(faces []*model.Face) []string {
 
 // Connectivity 连通性检测结果。
 type Connectivity struct {
-	RegionID  string
-	Connected bool
+	RegionID    string
+	Connected   bool
 	OrphanFaces []string // 无邻接的耦合面
-	Reason    string
+	Reason      string
 }
 
 // CheckConnectivity 检查区域连通性：耦合面必须存在对侧区域，
@@ -147,8 +153,8 @@ func CheckConnectivity(r *model.Region, faces []*model.Face) Connectivity {
 
 // RegionSnapshot 区域拓扑摘要（用于前置包快照）。
 type RegionSnapshot struct {
-	Region model.Region   `json:"region"`
-	Faces  []model.Face   `json:"faces"`
+	Region model.Region `json:"region"`
+	Faces  []model.Face `json:"faces"`
 }
 
 // BuildRegionSnapshot 构造不可变区域快照。

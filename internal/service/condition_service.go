@@ -69,11 +69,11 @@ func (s *ModelService) GetActive() (*model.PhysicsModel, error) {
 
 // ConditionService 边界条件编排：分配、评估适用性、批准（乐观锁）。
 type ConditionService struct {
-	bcs     *store.BCStore
-	faces   *store.FaceStore
-	gen     *store.IDGen
-	db      *store.DB
-	now     func() string
+	bcs   *store.BCStore
+	faces *store.FaceStore
+	gen   *store.IDGen
+	db    *store.DB
+	now   func() string
 }
 
 // NewConditionService 构造条件服务。
@@ -98,6 +98,9 @@ func (s *ConditionService) Assign(in conditions.BCInput) (*model.BC, error) {
 	}
 	if in.Unit != model.UnitSI && in.Unit != model.UnitCGS {
 		return nil, model.NewInvalid("unit must be si or cgs")
+	}
+	if !model.IsKnownBCType(in.Type) {
+		return nil, model.NewInvalid("unknown boundary condition type")
 	}
 	ts := s.now()
 	bc := &model.BC{
@@ -155,7 +158,7 @@ func (s *ConditionService) Revise(id string, value, secondary float64, expectVer
 	if bc.Status == model.BCStatusApproved {
 		return nil, model.NewConflict("condition %s approved, cannot revise; create a new condition", id)
 	}
-	v, err := s.bcs.UpdateValue(id, value, secondary, expectVersion)
+	v, err := s.bcs.UpdateValueAndStatus(id, value, secondary, expectVersion, "")
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +167,12 @@ func (s *ConditionService) Revise(id string, value, secondary float64, expectVer
 	f, ferr := s.faces.Get(bc.FaceID)
 	if ferr == nil {
 		conditions.Assess(f, bc)
+		if bc.Status == model.BCStatusConflicting {
+			if _, err := s.bcs.UpdateValueAndStatus(id, value, secondary, v, bc.Status); err != nil {
+				return nil, err
+			}
+			bc.Version = v + 1
+		}
 	}
 	return bc, nil
 }

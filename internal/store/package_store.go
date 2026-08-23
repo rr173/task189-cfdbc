@@ -37,6 +37,16 @@ func (s *PackageStore) Get(id string) (*model.SolverPackage, error) {
 	return &p, nil
 }
 
+// IsPublished checks the persisted lifecycle state without exposing storage
+// details to package orchestration callers.
+func (s *PackageStore) IsPublished(id string) (bool, error) {
+	var status model.PackageStatus
+	if err := s.db.conn.QueryRow(`SELECT status FROM solver_packages WHERE id=?`, id).Scan(&status); err != nil {
+		return false, err
+	}
+	return status == model.PkgPublished, nil
+}
+
 // List 列出全部包（倒序）。
 func (s *PackageStore) List() ([]*model.SolverPackage, error) {
 	rows, err := s.db.conn.Query(

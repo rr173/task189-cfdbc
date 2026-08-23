@@ -64,6 +64,15 @@ func (s *FaceStore) ListAll() ([]*model.Face, error) {
 	return scanFaces(rows)
 }
 
+// CountByRegion returns the persisted face count used by idempotent imports.
+func (s *FaceStore) CountByRegion(regionID string) (int, error) {
+	var count int
+	if err := s.db.conn.QueryRow(`SELECT COUNT(*) FROM faces WHERE region_id=?`, regionID).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // UpdateStatus 更新面状态。
 func (s *FaceStore) UpdateStatus(id string, status model.FaceStatus, duplicateOf, degenerate string) error {
 	_, err := s.db.conn.Exec(

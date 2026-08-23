@@ -1,8 +1,10 @@
 package service
 
 import (
+	"errors"
 	"time"
 
+	"task189-cfdbc/internal/audit"
 	"task189-cfdbc/internal/model"
 	"task189-cfdbc/internal/release"
 	"task189-cfdbc/internal/store"
@@ -14,6 +16,7 @@ type PackageService struct {
 	pkgs   *store.PackageStore
 	faces  *store.FaceStore
 	bcs    *store.BCStore
+	runs   *store.RunStore
 	models *store.ModelStore
 	gen    *store.IDGen
 	db     *store.DB
@@ -26,6 +29,7 @@ func NewPackageService(db *store.DB) *PackageService {
 		pkgs:   store.NewPackageStore(db),
 		faces:  store.NewFaceStore(db),
 		bcs:    store.NewBCStore(db),
+		runs:   store.NewRunStore(db),
 		models: store.NewModelStore(db),
 		gen:    store.NewIDGen("pkg"),
 		db:     db,
@@ -102,6 +106,16 @@ func (s *PackageService) Publish(id string) (*model.SolverPackage, error) {
 	if p.Status != model.PkgBuilding {
 		return nil, model.NewConflict("package %s not in building state (status=%s)", id, p.Status)
 	}
+	lastRun, err := s.runs.LatestForModel(p.ModelID)
+	if err != nil {
+		if errors.Is(err, store.ErrNoRows) {
+			return nil, model.NewConflict("package %s has no validation run", id)
+		}
+		return nil, err
+	}
+	if lastRun.ConfigVersion < p.ConfigVersion || !audit.Publishable(lastRun.Result) {
+		return nil, model.NewConflict("package %s is not backed by a solvable validation", id)
+	}
 	if err := s.pkgs.UpdateStatus(id, model.PkgPublished); err != nil {
 		return nil, err
 	}
@@ -165,8 +179,14 @@ func derefBCs(bcs []*model.BC) []model.BC {
 // Derive 派生新包：修订网格（新区域哈希）或条件变更后创建新包。
 // 已发布包为不可变基线；派生包保留对新基线的引用语义（快照独立）。
 func (s *PackageService) Derive(name, baseID string) (*model.SolverPackage, error) {
-	if _, err := s.pkgs.Get(baseID); err != nil {
+	base, err := s.pkgs.Get(baseID)
+	if err != nil {
 		return nil, model.NewNotFound("solver_package", baseID)
+	}
+	if published, err := s.pkgs.IsPublished(baseID); err != nil {
+		return nil, err
+	} else if !published || !release.CanDerive(base) {
+		return nil, model.NewConflict("package %s must be published before deriving", baseID)
 	}
 	return s.Build(name)
 }

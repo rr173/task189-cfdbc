@@ -56,6 +56,18 @@ func (s *RunStore) ListRuns(limit int) ([]*model.ValidationRun, error) {
 	return out, rows.Err()
 }
 
+// LatestForModel returns the most recent persisted validation for a model.
+func (s *RunStore) LatestForModel(modelID string) (*model.ValidationRun, error) {
+	row := s.db.conn.QueryRow(
+		`SELECT id,model_id,config_version,result,error_count,warning_count,created_at
+		 FROM validation_runs WHERE model_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1`, modelID)
+	var r model.ValidationRun
+	if err := row.Scan(&r.ID, &r.ModelID, &r.ConfigVersion, &r.Result, &r.ErrorCount, &r.WarningCount, &r.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 // InsertIssue 写入一条问题。
 func (s *RunStore) InsertIssue(i *model.Issue) error {
 	_, err := s.db.conn.Exec(

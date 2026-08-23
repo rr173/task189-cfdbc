@@ -3,10 +3,12 @@ package store
 import (
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // IDGen 生成简单递增 ID 前缀。
 type IDGen struct {
+	mu     sync.Mutex
 	prefix string
 	seq    int
 }
@@ -16,6 +18,8 @@ func NewIDGen(prefix string) *IDGen { return &IDGen{prefix: prefix} }
 
 // Next 生成下一个 ID：prefix-<seq>。
 func (g *IDGen) Next() string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.seq++
 	return g.prefix + "-" + strconv.Itoa(g.seq)
 }

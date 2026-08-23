@@ -8,12 +8,12 @@ import (
 
 // BCInput 边界条件创建输入。
 type BCInput struct {
-	FaceID string          `json:"face_id"`
-	RegionID string        `json:"region_id"`
-	Type   model.BCType    `json:"type"`
-	Unit   model.UnitSystem `json:"unit"`
-	Value  float64         `json:"value"`
-	Secondary float64      `json:"secondary,omitempty"`
+	FaceID    string           `json:"face_id"`
+	RegionID  string           `json:"region_id"`
+	Type      model.BCType     `json:"type"`
+	Unit      model.UnitSystem `json:"unit"`
+	Value     float64          `json:"value"`
+	Secondary float64          `json:"secondary,omitempty"`
 }
 
 // FaceRoleAllowed 判断条件类型是否可用于该面角色。
@@ -45,19 +45,31 @@ func SideForType(t model.BCType) (string, bool) {
 //  2. 数值非法（非有限值、面积为正时需要面积>0 之外的约束）→ conflicting；
 //  3. 否则 applicable。
 func Assess(f *model.Face, bc *model.BC) {
+	if !model.IsKnownBCType(bc.Type) {
+		bc.Status = model.BCStatusConflicting
+		return
+	}
 	if !FaceRoleAllowed(f, bc.Type) {
 		bc.Status = model.BCStatusConflicting
 		return
 	}
-	if isBadValue(bc.Value) {
+	if isBadValue(bc.Type, bc.Value) {
 		bc.Status = model.BCStatusConflicting
 		return
 	}
 	bc.Status = model.BCStatusApplicable
 }
 
-func isBadValue(v float64) bool {
-	return v != v || v == 1e308 // NaN 或无穷
+func isBadValue(t model.BCType, v float64) bool {
+	if !model.IsFiniteBoundaryValue(v) {
+		return true
+	}
+	switch t {
+	case model.BCInletMassFlow, model.BCOutletMassFlow:
+		return v < 0
+	default:
+		return false
+	}
 }
 
 // HasExistingCondition 判断面是否已存在适用/已批准的覆盖条件。
@@ -118,9 +130,9 @@ func CheckCoverage(faces []*model.Face, bcByFace map[string][]*model.BC) Coverag
 
 // InterfacePair 耦合面双侧条件：SideA 属于本面（或对侧面），SideB 反之。
 type InterfacePair struct {
-	Face   *model.Face
-	SideA  *model.BC
-	SideB  *model.BC
+	Face  *model.Face
+	SideA *model.BC
+	SideB *model.BC
 }
 
 // isSideA 判断条件是否为 interface 的 A 侧。

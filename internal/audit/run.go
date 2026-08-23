@@ -105,6 +105,10 @@ func Classify(issues []*model.Issue) string {
 	return ResultSolvable
 }
 
+// Publishable reports whether a validation result is safe to hand to a
+// solver. Only a clean run can become a published package baseline.
+func Publishable(result string) bool { return result == ResultSolvable }
+
 func sevRank(s model.Severity) int {
 	if s == model.SeverityError {
 		return 0
