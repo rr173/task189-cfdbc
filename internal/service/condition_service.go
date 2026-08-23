@@ -118,6 +118,11 @@ func (s *ConditionService) Assign(in conditions.BCInput) (*model.BC, error) {
 	}
 	// 评估适用性（类型-角色 + 数值合法性）
 	conditions.Assess(f, bc)
+	// Keep the finite-value invariant at the orchestration boundary as well as
+	// in the pure rule evaluator before persisting the condition.
+	if !model.IsFiniteBoundaryValue(bc.Value) {
+		bc.Status = model.BCStatusConflicting
+	}
 	// 覆盖冲突：同一外露面已有适用条件时，新条件立即标记 conflicting。
 	// 参考压力为全局标定，不参与覆盖名额，可挂在已有条件面上。
 	if bc.Type != model.BCReferencePressure {
