@@ -17,7 +17,12 @@ type IDGen struct {
 func NewIDGen(prefix string) *IDGen { return &IDGen{prefix: prefix} }
 
 // Next 生成下一个 ID：prefix-<seq>。
+// 该方法会被多个并发 HTTP 请求同时调用（每个服务持有的 IDGen
+// 是跨请求共享的单例），因此必须在持锁状态下自增并读取 seq，
+// 否则两个并发请求可能读到相同的 seq，产生重复 ID。
 func (g *IDGen) Next() string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.seq++
 	return g.prefix + "-" + strconv.Itoa(g.seq)
 }
