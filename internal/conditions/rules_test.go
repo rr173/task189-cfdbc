@@ -41,6 +41,28 @@ func TestAssessApplicable(t *testing.T) {
 	}
 }
 
+// TestAssessNegativeMassFlow 入口/出口质量流量为负属非法值，
+// 必须标记 conflicting（而非继续 applicable）。
+func TestAssessNegativeMassFlow(t *testing.T) {
+	f := &model.Face{Kind: model.KindOuter}
+	for _, tc := range []struct {
+		typ  model.BCType
+		val  float64
+		want model.BCStatus
+	}{
+		{model.BCInletMassFlow, -1.5, model.BCStatusConflicting},
+		{model.BCOutletMassFlow, -0.001, model.BCStatusConflicting},
+		{model.BCInletMassFlow, 0, model.BCStatusApplicable},
+		{model.BCInletMassFlow, 1.5, model.BCStatusApplicable},
+	} {
+		bc := &model.BC{Type: tc.typ, Value: tc.val}
+		Assess(f, bc)
+		if bc.Status != tc.want {
+			t.Fatalf("%s value=%v: expected %s, got %s", tc.typ, tc.val, tc.want, bc.Status)
+		}
+	}
+}
+
 func TestCheckCoverageMissingAndConflict(t *testing.T) {
 	faces := []*model.Face{
 		{ID: "f1", Status: model.FaceExposed},

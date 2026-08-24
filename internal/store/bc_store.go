@@ -91,16 +91,18 @@ func (s *BCStore) UpdateValue(id string, value, secondary float64, expectVersion
 	return s.UpdateValueAndStatus(id, value, secondary, expectVersion, "")
 }
 
-// UpdateValueAndStatus updates the numeric payload and the derived status in
-// one optimistic-lock operation.
+// UpdateValueAndStatus updates the numeric payload and, when status is
+// non-empty, the derived status in one optimistic-lock operation.
 func (s *BCStore) UpdateValueAndStatus(id string, value, secondary float64, expectVersion int, status model.BCStatus) (int, error) {
 	query := `UPDATE boundary_conditions SET value=?, secondary=?, updated_at=?, version=version+1`
 	args := []any{value, secondary, now()}
-	_ = status
+	if status != "" {
+		query += `, status=?`
+		args = append(args, status)
+	}
 	query += ` WHERE id=? AND version=?`
 	args = append(args, id, expectVersion)
-	res, err := s.db.conn.Exec(
-		query, args...)
+	res, err := s.db.conn.Exec(query, args...)
 	if err != nil {
 		return 0, err
 	}

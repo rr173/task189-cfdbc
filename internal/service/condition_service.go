@@ -155,6 +155,10 @@ func (s *ConditionService) Approve(id string) (*model.BC, error) {
 }
 
 // Revise 修订条件数值（乐观锁：并发版本冲突检测）。
+// 修订后须重新评估适用性：类型-角色与数值合法性（含入口/出口质量流量非负），
+// 以及同面覆盖冲突（同面已存在另一条适用/已批准条件时本条冲突），
+// 派生的 status 同时写回数据库与返回值，确保负质量流量等非法值将条件
+// 从 applicable 转为 conflicting。
 func (s *ConditionService) Revise(id string, value, secondary float64, expectVersion int) (*model.BC, error) {
 	bc, err := s.bcs.Get(id)
 	if err != nil {
@@ -163,11 +167,37 @@ func (s *ConditionService) Revise(id string, value, secondary float64, expectVer
 	if bc.Status == model.BCStatusApproved {
 		return nil, model.NewConflict("condition %s approved, cannot revise; create a new condition", id)
 	}
-	v, err := s.bcs.UpdateValueAndStatus(id, value, secondary, expectVersion, "")
+	// 先在内存副本上重新评估派生状态，再据此写回。
+	probe := *bc
+	probe.Value = value
+	probe.Secondary = secondary
+	probe.Status = model.BCStatusApplicable
+	if f, ferr := s.faces.Get(bc.FaceID); ferr == nil {
+		conditions.Assess(f, &probe)
+	}
+	if !model.IsFiniteBoundaryValue(probe.Value) {
+		probe.Status = model.BCStatusConflicting
+	}
+	// 覆盖冲突：同面已存在另一条适用/已批准条件时，本条标记 conflicting。
+	// 参考压力为全局标定，不参与覆盖名额。
+	if bc.Type != model.BCReferencePressure {
+		if existing, err := s.bcs.ListByFace(bc.FaceID); err == nil {
+			others := make([]*model.BC, 0, len(existing))
+			for _, e := range existing {
+				if e.ID != bc.ID {
+					others = append(others, e)
+				}
+			}
+			if conditions.HasExistingCondition(others) {
+				probe.Status = model.BCStatusConflicting
+			}
+		}
+	}
+	v, err := s.bcs.UpdateValueAndStatus(id, value, secondary, expectVersion, probe.Status)
 	if err != nil {
 		return nil, err
 	}
-	bc.Value, bc.Secondary, bc.Version = value, secondary, v
+	bc.Value, bc.Secondary, bc.Version, bc.Status = value, secondary, v, probe.Status
 	return bc, nil
 }
 

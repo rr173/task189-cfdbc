@@ -60,13 +60,16 @@ func Assess(f *model.Face, bc *model.BC) {
 	bc.Status = model.BCStatusApplicable
 }
 
+// isBadValue 判定条件数值是否非法（→ conflicting）。
+// 非有限值（NaN/Inf）非法；入口/出口质量流量为负在物理上无意义
+// （流向反转应由入口/出口类型表达，而非负流量值），同样视为非法。
 func isBadValue(t model.BCType, v float64) bool {
 	if !model.IsFiniteBoundaryValue(v) {
 		return true
 	}
 	switch t {
 	case model.BCInletMassFlow, model.BCOutletMassFlow:
-		return false
+		return v < 0
 	default:
 		return false
 	}
