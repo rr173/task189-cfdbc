@@ -64,6 +64,27 @@ func TestCheckConnectivityOrphan(t *testing.T) {
 	}
 }
 
+func TestCanSeal(t *testing.T) {
+	cases := []struct {
+		name      string
+		status    model.RegionStatus
+		faceCount int
+		want      bool
+	}{
+		{"imported no faces", model.RegionImported, 0, false},
+		{"imported with faces (impossible but guarded)", model.RegionImported, 1, false},
+		{"connected", model.RegionConnected, 5, true},
+		{"isolated", model.RegionIsolated, 3, true},
+		{"connected zero faces (guarded)", model.RegionConnected, 0, false},
+		{"sealed", model.RegionSealed, 5, false},
+	}
+	for _, c := range cases {
+		if got := CanSeal(c.status, c.faceCount); got != c.want {
+			t.Fatalf("%s: CanSeal(%s,%d)=%v want %v", c.name, c.status, c.faceCount, got, c.want)
+		}
+	}
+}
+
 func TestFaceFingerprintDistinct(t *testing.T) {
 	f1 := &model.Face{Area: 1.0, NormalX: 1, NodeCount: 4}
 	f2 := &model.Face{Area: 2.0, NormalX: 1, NodeCount: 4}

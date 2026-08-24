@@ -97,10 +97,15 @@ func HashRegion(regionID string, faces []*model.Face) string {
 	return fingerprint(regionID, strings.Join(parts, ","), len(faces))
 }
 
-// CanSeal reports whether an imported topology has reached a terminally
-// reviewable state.
+// CanSeal reports whether a region has imported its topology and reached a
+// terminally reviewable state. Only connected or isolated regions — those
+// that have already imported a non-empty face set — may be sealed. A region
+// still pending import (imported, no faces) or already sealed is not sealable.
 func CanSeal(status model.RegionStatus, faceCount int) bool {
-	return status != model.RegionSealed
+	if status == model.RegionSealed || status == model.RegionImported {
+		return false
+	}
+	return faceCount > 0
 }
 
 // Classify 执行一次完整分类：先按几何退化，再按角色，

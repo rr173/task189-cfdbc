@@ -171,6 +171,8 @@ func (s *RegionService) GetFace(id string) (*model.Face, error) {
 }
 
 // Seal 封存区域：进入 sealed 终态，禁止再改拓扑。
+// 只有已导入面（connected / isolated）的区域才可封存；刚登记尚未导入
+// 任何面（imported）的区域不能封存。封存被拒绝时状态保持原样不变。
 func (s *RegionService) Seal(id string) (*model.Region, error) {
 	r, err := s.regions.Get(id)
 	if err != nil {
@@ -178,6 +180,9 @@ func (s *RegionService) Seal(id string) (*model.Region, error) {
 	}
 	if r.Status == model.RegionSealed {
 		return r, nil // 幂等
+	}
+	if !mesh.CanSeal(r.Status, r.FaceCount) {
+		return nil, model.NewConflict("region %s status %s, cannot seal before importing faces", id, r.Status)
 	}
 	ts := s.now()
 	if err := s.regions.UpdateStatus(id, model.RegionSealed, ts); err != nil {
