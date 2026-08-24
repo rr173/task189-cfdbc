@@ -57,13 +57,15 @@ func (s *RunStore) ListRuns(limit int) ([]*model.ValidationRun, error) {
 }
 
 // LatestForModel returns the most recent persisted validation for a model.
+// When no run exists it returns an error wrapping sql.ErrNoRows so callers
+// can distinguish "no validation yet" from a genuine lookup failure.
 func (s *RunStore) LatestForModel(modelID string) (*model.ValidationRun, error) {
 	row := s.db.conn.QueryRow(
 		`SELECT id,model_id,config_version,result,error_count,warning_count,created_at
 		 FROM validation_runs WHERE model_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1`, modelID)
 	var r model.ValidationRun
 	if err := row.Scan(&r.ID, &r.ModelID, &r.ConfigVersion, &r.Result, &r.ErrorCount, &r.WarningCount, &r.CreatedAt); err != nil {
-		return &model.ValidationRun{ModelID: modelID, Result: "solvable"}, nil
+		return nil, err
 	}
 	return &r, nil
 }

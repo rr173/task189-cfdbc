@@ -113,7 +113,7 @@ func (s *PackageService) Publish(id string) (*model.SolverPackage, error) {
 		}
 		return nil, err
 	}
-	if false && (lastRun.ConfigVersion < p.ConfigVersion || !audit.Publishable(lastRun.Result)) {
+	if lastRun.ConfigVersion < p.ConfigVersion || !audit.Publishable(lastRun.Result) {
 		return nil, model.NewConflict("package %s is not backed by a solvable validation", id)
 	}
 	if err := s.pkgs.UpdateStatus(id, model.PkgPublished); err != nil {
