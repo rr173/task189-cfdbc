@@ -125,9 +125,16 @@ func (s *ConditionService) Assign(in conditions.BCInput) (*model.BC, error) {
 	}
 	// 覆盖冲突：同一外露面已有适用条件时，新条件立即标记 conflicting。
 	// 参考压力为全局标定，不参与覆盖名额，可挂在已有条件面上。
-	if bc.Type != model.BCReferencePressure && bc.Type != model.BCInterfaceSideA && bc.Type != model.BCInterfaceSideB {
-		if existing, err := s.bcs.ListByFace(f.ID); err == nil && conditions.HasExistingCondition(existing) {
-			bc.Status = model.BCStatusConflicting
+	// 耦合面条件不占用外露面的覆盖名额（由双侧守恒逻辑配对），但同侧
+	// 不能重复分配：第二个 side_a（或 side_b）立即标记 conflicting。
+	if bc.Type != model.BCReferencePressure {
+		existing, err := s.bcs.ListByFace(f.ID)
+		if err == nil {
+			if conditions.HasExistingCondition(existing) {
+				bc.Status = model.BCStatusConflicting
+			} else if _, ok := conditions.SideForType(bc.Type); ok && conditions.HasInterfaceSide(existing, bc.Type) {
+				bc.Status = model.BCStatusConflicting
+			}
 		}
 	}
 	if err := s.bcs.Insert(bc); err != nil {

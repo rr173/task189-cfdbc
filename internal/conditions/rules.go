@@ -87,6 +87,27 @@ func HasExistingCondition(bcs []*model.BC) bool {
 	return false
 }
 
+// HasInterfaceSide 判断面是否已存在同侧的适用/已批准耦合面条件。
+// 耦合面同一侧（A 或 B）只能分配一次：第二次分配立即标记 conflicting。
+// 对侧（A 已存在时再分配 B，或反之）允许，由守恒检查配对处理。
+// side 为新分配条件的类型（interface_side_a / interface_side_b）。
+func HasInterfaceSide(bcs []*model.BC, side model.BCType) bool {
+	sideName, ok := SideForType(side)
+	if !ok {
+		return false
+	}
+	for _, bc := range bcs {
+		existing, ok := SideForType(bc.Type)
+		if !ok || existing != sideName {
+			continue
+		}
+		if bc.Status == model.BCStatusApplicable || bc.Status == model.BCStatusApproved {
+			return true
+		}
+	}
+	return false
+}
+
 // IsCoveringType 判断条件类型是否参与“覆盖名额”计算。
 // 参考压力为全局标定，不参与；interface 类型由配对逻辑处理。
 func IsCoveringType(t model.BCType) bool {

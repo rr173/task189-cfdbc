@@ -60,6 +60,41 @@ func TestCheckCoverageMissingAndConflict(t *testing.T) {
 	}
 }
 
+func TestHasInterfaceSideDuplicate(t *testing.T) {
+	existing := []*model.BC{
+		{Type: model.BCInterfaceSideA, Status: model.BCStatusApplicable},
+	}
+	// 同侧再次分配 → 已存在 → 应标记冲突
+	if !HasInterfaceSide(existing, model.BCInterfaceSideA) {
+		t.Fatal("expected existing side a to block a second side a assignment")
+	}
+	// 对侧分配 → 不冲突（由守恒检查配对）
+	if HasInterfaceSide(existing, model.BCInterfaceSideB) {
+		t.Fatal("existing side a should not block side b assignment")
+	}
+	// 已批准的同侧也占用名额
+	approved := []*model.BC{
+		{Type: model.BCInterfaceSideB, Status: model.BCStatusApproved},
+	}
+	if !HasInterfaceSide(approved, model.BCInterfaceSideB) {
+		t.Fatal("expected approved side b to block a second side b assignment")
+	}
+	// conflicting/draft 的同侧不占用名额（仅 applicable/approved 算数）
+	stale := []*model.BC{
+		{Type: model.BCInterfaceSideA, Status: model.BCStatusConflicting},
+	}
+	if HasInterfaceSide(stale, model.BCInterfaceSideA) {
+		t.Fatal("conflicting side should not block reassignment")
+	}
+	// 非耦合面条件不算同侧占用
+	mixed := []*model.BC{
+		{Type: model.BCInletMassFlow, Status: model.BCStatusApplicable},
+	}
+	if HasInterfaceSide(mixed, model.BCInterfaceSideA) {
+		t.Fatal("non-interface condition should not count as side occupancy")
+	}
+}
+
 func TestCollectInterfacesPairAcrossRegions(t *testing.T) {
 	faces := []*model.Face{
 		{ID: "f-a", RegionID: "r1", Name: "coup", Kind: model.KindInterface, NeighborRegion: "r2", NeighborFace: "j"},
