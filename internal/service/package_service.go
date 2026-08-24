@@ -178,18 +178,14 @@ func derefBCs(bcs []*model.BC) []model.BC {
 
 // Derive 派生新包：修订网格（新区域哈希）或条件变更后创建新包。
 // 已发布包为不可变基线；派生包保留对新基线的引用语义（快照独立）。
+// 只有 published 状态的包可作为派生基线；building 及其他状态必须被拒绝。
 func (s *PackageService) Derive(name, baseID string) (*model.SolverPackage, error) {
 	base, err := s.pkgs.Get(baseID)
 	if err != nil {
 		return nil, model.NewNotFound("solver_package", baseID)
 	}
-	if published, err := s.pkgs.IsPublished(baseID); err != nil {
-		return nil, err
-	} else if !published || !release.CanDerive(base) {
-		if published {
-			return s.Build(name)
-		}
-		return nil, model.NewConflict("package %s must be published before deriving", baseID)
+	if !release.CanDerive(base) {
+		return nil, model.NewConflict("package %s must be published before deriving (status=%s)", baseID, base.Status)
 	}
 	return s.Build(name)
 }

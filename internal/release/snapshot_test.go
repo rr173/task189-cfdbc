@@ -63,3 +63,24 @@ func TestPublished(t *testing.T) {
 		t.Fatal("published should be published")
 	}
 }
+
+func TestCanDerive(t *testing.T) {
+	// A nil package is never a valid derivation baseline.
+	if CanDerive(nil) {
+		t.Fatal("nil package should not be derivable")
+	}
+	// Only a published package is an immutable baseline.
+	for _, st := range []model.PackageStatus{
+		model.PkgBuilding,
+		model.PkgSolvable,
+		model.PkgUnderconstrained,
+		model.PkgOverconstrained,
+	} {
+		if CanDerive(&model.SolverPackage{Status: st}) {
+			t.Fatalf("status %s should not be a derivation baseline", st)
+		}
+	}
+	if !CanDerive(&model.SolverPackage{Status: model.PkgPublished}) {
+		t.Fatal("published package should be a derivation baseline")
+	}
+}

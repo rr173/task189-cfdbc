@@ -124,4 +124,6 @@ func DiffPackages(from, to Snapshot, fromID, toID string) Diff {
 func Published(p *model.SolverPackage) bool { return p.Status == model.PkgPublished }
 
 // CanDerive restricts package branching to an immutable published baseline.
-func CanDerive(p *model.SolverPackage) bool { return p != nil }
+// A building or inconclusive (solvable/under-/over-constrained) package is not
+// yet a stable baseline and must be rejected as a derivation source.
+func CanDerive(p *model.SolverPackage) bool { return p != nil && p.Status == model.PkgPublished }

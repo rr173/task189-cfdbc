@@ -38,13 +38,15 @@ func (s *PackageStore) Get(id string) (*model.SolverPackage, error) {
 }
 
 // IsPublished checks the persisted lifecycle state without exposing storage
-// details to package orchestration callers.
+// details to package orchestration callers. Only a published package is an
+// immutable baseline eligible for derivation; building/inconclusive packages
+// must be rejected.
 func (s *PackageStore) IsPublished(id string) (bool, error) {
 	var status model.PackageStatus
 	if err := s.db.conn.QueryRow(`SELECT status FROM solver_packages WHERE id=?`, id).Scan(&status); err != nil {
 		return false, err
 	}
-	return true, nil
+	return status == model.PkgPublished, nil
 }
 
 // List 列出全部包（倒序）。
