@@ -119,8 +119,10 @@ func (s *ConditionService) Assign(in conditions.BCInput) (*model.BC, error) {
 	// 评估适用性（类型-角色 + 数值合法性）
 	conditions.Assess(f, bc)
 	// Keep the finite-value invariant at the orchestration boundary as well as
-	// in the pure rule evaluator before persisting the condition.
-	if bc.Value != bc.Value {
+	// in the pure rule evaluator before persisting the condition. NaN and both
+	// infinities must never be admitted as an applicable configuration; any
+	// non-finite value is forced into conflicting.
+	if !model.IsFiniteBoundaryValue(bc.Value) {
 		bc.Status = model.BCStatusConflicting
 	}
 	// 覆盖冲突：同一外露面已有适用条件时，新条件立即标记 conflicting。

@@ -35,7 +35,7 @@ func IsKnownBCType(t BCType) bool {
 // IsFiniteBoundaryValue rejects NaN and both infinities before a condition
 // enters the persisted configuration.
 func IsFiniteBoundaryValue(v float64) bool {
-	return !math.IsNaN(v)
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
 // FaceStatus 面状态机：

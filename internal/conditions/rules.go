@@ -42,7 +42,7 @@ func SideForType(t model.BCType) (string, bool) {
 
 // Assess 评估单条条件的适用状态。规则：
 //  1. 类型与面角色不匹配 → conflicting；
-//  2. 数值非法（非有限值、面积为正时需要面积>0 之外的约束）→ conflicting；
+//  2. 数值非法（非有限值，或入口/出口质量流量为负）→ conflicting；
 //  3. 否则 applicable。
 func Assess(f *model.Face, bc *model.BC) {
 	if !model.IsKnownBCType(bc.Type) {
@@ -61,7 +61,8 @@ func Assess(f *model.Face, bc *model.BC) {
 }
 
 func isBadValue(t model.BCType, v float64) bool {
-	if v != v {
+	// NaN 与正负无穷均不可作为可用配置：统一以有限性闸门拦截。
+	if !model.IsFiniteBoundaryValue(v) {
 		return true
 	}
 	switch t {
