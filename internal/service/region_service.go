@@ -116,11 +116,14 @@ func (s *RegionService) ImportFaces(regionID string, inputs []mesh.FaceInput) (*
 	conn := mesh.CheckConnectivity(r, faces)
 	hash := mesh.HashRegion(regionID, faces)
 
-	// 幂等：已有拓扑不能再次导入，也不能原地替换。
+	// 幂等：区域一旦已有拓扑，任何再次导入都必须拒绝——既不能原地
+	// 替换（哈希不同），也不能重复落库（哈希相同）。相同面集合再次导入
+	// 属幂等重复，直接拒绝，数据库中的面数量不增加。
 	if r.MeshHash != "" {
-		if r.MeshHash != hash {
-			return nil, nil, model.NewConflict("region %s already has mesh hash %s, import would change topology; derive a new region instead", regionID, r.MeshHash)
+		if r.MeshHash == hash {
+			return nil, nil, model.NewConflict("region %s already has identical mesh hash %s; re-importing the same face set is not permitted", regionID, r.MeshHash)
 		}
+		return nil, nil, model.NewConflict("region %s already has mesh hash %s, import would change topology; derive a new region instead", regionID, r.MeshHash)
 	}
 
 	// 落库

@@ -272,12 +272,30 @@ func runSmoke(dbPath string) error {
 	packages2 := service.NewPackageService(db2)
 	stats2 := service.NewStatsService(db2)
 
-	// 幂等：相同网格哈希导入被拒绝（拓扑已存在）
+	// 幂等：相同网格哈希导入被拒绝（拓扑已存在）。先用与原区域1完全相同
+	// 的面集合再次导入——必须被拒绝，且面数量不能增加。
+	r1Before, err := regions2.Get(r1.ID)
+	if err != nil {
+		return fmt.Errorf("get r1 before re-import: %w", err)
+	}
+	faceCountBefore := r1Before.FaceCount
 	_, _, err = regions2.ImportFaces(r1.ID, []mesh.FaceInput{
 		{Name: "face-in", Kind: "outer", Area: 0.25, NormalX: -1, NodeCount: 4},
+		{Name: "face-out", Kind: "outer", Area: 0.25, NormalX: 1, NodeCount: 4},
+		{Name: "face-wall-a", Kind: "outer", Area: 1.0, NormalY: 1, NodeCount: 4},
+		{Name: "face-wall-b", Kind: "outer", Area: 1.0, NormalY: -1, NodeCount: 4},
+		{Name: "face-coup", Kind: "interface", Area: 0.16, NormalZ: 1, NodeCount: 4,
+			NeighborRegion: r2.ID, NeighborFace: "face-j"},
 	})
 	if err == nil {
-		return fmt.Errorf("expected idempotent import rejection after reopen")
+		return fmt.Errorf("expected identical face set re-import to be rejected")
+	}
+	r1After, err := regions2.Get(r1.ID)
+	if err != nil {
+		return fmt.Errorf("get r1 after re-import: %w", err)
+	}
+	if r1After.FaceCount != faceCountBefore {
+		return fmt.Errorf("identical re-import must not change face count: before=%d after=%d", faceCountBefore, r1After.FaceCount)
 	}
 
 	// 运行记录与包状态持久化
